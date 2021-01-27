@@ -1,5 +1,5 @@
 #coding=utf-8
-from services.app import DebugConfig, init_app, gevent_run
+from app import DebugConfig, init_app, gevent_run
 import os
 
 

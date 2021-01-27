@@ -1,8 +1,14 @@
 # coding=utf-8
+'''
+flask app bootstrap file
+'''
+import os
+
+from flask_sqlalchemy import SQLAlchemy
+db = SQLAlchemy()
+BASE_DIR = os.path.dirname(__file__)
 
 from flask import Flask, current_app
-
-from flask_migrate import Migrate
 from flask_admin import Admin, AdminIndexView, expose
 from flask_admin.contrib.sqla import ModelView
 from flask.logging import default_handler
@@ -10,19 +16,14 @@ from flask_login import current_user, login_required
 from logging import Formatter, FileHandler
 from configs.config import configs
 from gevent.pywsgi import WSGIServer
-
-from flaskweb.app import db, admin
 from configs.config import DebugConfig
-from . import models
-from . import views
+from demo.model import models
+from demo.controller import views
 
 
 def init_app(config=DebugConfig):
     app = create_app(config)
     app.register_blueprint(views.bp)
-    # admin
-    admin.add_view(ModelView(models.Todo, db.session))
-    admin.add_view(ModelView(models.TodoItem, db.session))
     return app
 
 
@@ -32,6 +33,7 @@ def create_app(config, disable_debug_bp=False):
         static_folder=None,
         template_folder=None,
     )
+    # 配置
     if isinstance(config, str):
         config = configs[config]
     app.config.from_object(config)
@@ -42,21 +44,12 @@ def create_app(config, disable_debug_bp=False):
     # db
     db.init_app(app)
     app.logger.info("init db %s" % config.SQLALCHEMY_DATABASE_URI)
-    migrate = Migrate(app, db)
 
     # views
-    import services.views as main_views
-    import auth.models as auth_models
-    import auth.views as auth_views
+    import demo.controller.views as main_views
 
     if not disable_debug_bp:
-        auth_views.login_manager.init_app(app)
         app.register_blueprint(main_views.bp)
-        app.register_blueprint(auth_views.bp)
-
-    # admin
-    admin.init_app(app, index_view=AdminIndex())
-    admin.add_view(AdminOnlyModelView(auth_models.User, db.session))
 
     return app
 
@@ -75,18 +68,3 @@ def gevent_run(app, host="127.0.0.1", port=5000):
     print("gevent server staring on http://%s:%s" % (host, port))
     WSGIServer((host, int(port)), app).serve_forever()
 
-
-class AdminOnlyModelView(ModelView):
-    def is_accessible(self):
-        if not current_user.is_active:
-            return False
-        if current_app.debug:
-            return True
-        return current_user.is_admin
-
-
-class AdminIndex(AdminIndexView):
-    @expose("/")
-    @login_required
-    def index(self):
-        return super().index()
